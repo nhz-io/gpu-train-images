@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
  && rm -rf /var/lib/apt/lists/*
 COPY torch.txt requirements.txt model.sha256 /src/
 RUN python3 -m pip install --quiet --no-cache-dir --break-system-packages --require-hashes --no-deps \
+      --index-url https://download.pytorch.org/whl/cu128 --extra-index-url https://pypi.org/simple \
       --target /opt/torch -r /src/torch.txt
 RUN python3 -m pip install --quiet --no-cache-dir --break-system-packages --require-hashes --no-deps \
       --target /opt/py -r /src/requirements.txt \
