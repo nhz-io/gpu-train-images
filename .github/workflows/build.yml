@@ -1,0 +1,35 @@
+# Builds each image folder and pushes it to ghcr.io/nhz-io/gpu-train-images/<folder>:lock-<12 hex of requirements.txt>.
+# Only the checkout action is used (pinned); docker itself does the rest. The job summary has the digest and sizes.
+name: build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  modernbert-cu128:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Free disk (torch + CUDA wheels need about 20 GB while building)
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+      - name: Build
+        working-directory: modernbert-cu128
+        run: |
+          tag=lock-$(sha256sum < requirements.txt | cut -c1-12)
+          echo "REF=ghcr.io/${GITHUB_REPOSITORY}/modernbert-cu128:$tag" >> "$GITHUB_ENV"
+          docker build -t "ghcr.io/${GITHUB_REPOSITORY}/modernbert-cu128:$tag" .
+      - name: Push
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$REF"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$REF")
+          packed=$(docker buildx imagetools inspect --raw "$digest" | jq '[.layers[].size] | add')
+          unpacked=$(docker image inspect --format '{{.Size}}' "$REF")
+          {
+            echo "image: \`$digest\`"
+            echo "compressed: $((packed / 1048576)) MiB, unpacked: $((unpacked / 1048576)) MiB"
+            echo '```'; docker history --format '{{.Size}}\t{{.CreatedBy}}' "$REF" | cut -c1-140; echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
