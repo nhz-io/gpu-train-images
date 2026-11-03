@@ -9,3 +9,4 @@ models at a pinned revision. No data, no keys.
 | Image | For |
 |---|---|
 | `modernbert-cu128` | ModernBERT-base fine-tunes: torch 2.8.0+cu128, the training deps, ModernBERT-base. The host brings the NVIDIA driver (CUDA 12.8 or newer) |
+| `pipeline-smoke` | No training: Ubuntu, python3, openssl, openssh. For checking the run pipeline around the job (copies, encryption, stop/start) without pulling torch |

@@ -1,0 +1,33 @@
+# Builds pipeline-smoke and pushes it to ghcr.io/nhz-io/gpu-train-images/pipeline-smoke:rev-<12 hex of its Dockerfile>.
+# The job summary has the digest and sizes.
+name: pipeline-smoke
+on:
+  push:
+    branches: [main]
+    paths: [pipeline-smoke/**, .github/workflows/pipeline-smoke.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  pipeline-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Build
+        working-directory: pipeline-smoke
+        run: |
+          tag=rev-$(sha256sum < Dockerfile | cut -c1-12)
+          echo "REF=ghcr.io/${GITHUB_REPOSITORY}/pipeline-smoke:$tag" >> "$GITHUB_ENV"
+          docker build -t "ghcr.io/${GITHUB_REPOSITORY}/pipeline-smoke:$tag" .
+      - name: Push
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$REF"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$REF")
+          packed=$(docker buildx imagetools inspect --raw "$digest" | jq '[.layers[].size] | add')
+          unpacked=$(docker image inspect --format '{{.Size}}' "$REF")
+          {
+            echo "image: \`$digest\`"
+            echo "compressed: $((packed / 1048576)) MiB, unpacked: $((unpacked / 1048576)) MiB"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
